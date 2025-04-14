@@ -4,12 +4,8 @@ const nextConfig = {
   swcMinify: true,
   images: {
     domains: ['images.unsplash.com', 'via.placeholder.com'],
-    unoptimized: true,
   },
-  // Configurações específicas para Cloudflare Pages
-  output: 'export',
-  distDir: '.vercel/output/static',
-  // Desabilitar verificações de tipo durante o build para evitar problemas com o Edge Runtime
+  // Manter estas configurações para facilitar o deployment
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -19,3 +15,4 @@ const nextConfig = {
 }
 
 module.exports = nextConfig
+

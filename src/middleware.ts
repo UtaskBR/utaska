@@ -11,7 +11,16 @@ import type { NextRequest } from 'next/server';
 import { verifyJWT } from './lib/jwt';
 
 // Configuração para Edge Runtime
-export const runtime = 'experimental-edge';
+export const config = {
+  matcher: [
+    /*
+     * Intercepta todas as rotas exceto:
+     * - Arquivos estáticos (_next, static, imagens, etc)
+     * - Rotas de erro (404, 500, etc)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.png$|api).*)',
+  ],
+};
 
 // Rotas que não precisam de autenticação
 const publicRoutes = [
@@ -97,13 +106,3 @@ export async function middleware(request: NextRequest) {
 /**
  * Configuração de quais rotas o middleware deve interceptar
  */
-export const config = {
-  matcher: [
-    /*
-     * Intercepta todas as rotas exceto:
-     * - Arquivos estáticos (_next, static, imagens, etc)
-     * - Rotas de erro (404, 500, etc)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.png$).*)',
-  ],
-};
