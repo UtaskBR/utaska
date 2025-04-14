@@ -50,3 +50,11 @@ coverage
 *.log
 *.tgz
 .cache
+.next
+node_modules
+
+# Ignorar build e dependências
+.next
+node_modules
+.next
+node_modules
