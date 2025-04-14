@@ -1,0 +1,20 @@
+# Configuração do Cloudflare Workers
+# Este arquivo define as configurações para implantação no Cloudflare Workers
+
+name = "utask"
+compatibility_date = "2023-12-01"
+
+# Configuração do banco de dados D1
+[[d1_databases]]
+binding = "DB"
+database_name = "utask_db"
+database_id = "dde94169-4239-46b4-a755-b2842fc716f6"
+
+# Configuração de variáveis de ambiente
+[vars]
+JWT_SECRET = "utask-secretkey-037"
+ENVIRONMENT = "production"
+
+# Configurações para ambiente de produção
+[env.production]
+vars = { ENVIRONMENT = "production" }

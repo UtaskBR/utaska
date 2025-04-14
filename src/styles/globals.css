@@ -1,0 +1,76 @@
+/* Estilos globais para o UTASK */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --utask-blue: #3b82f6;
+  --utask-blue-dark: #2563eb;
+  --utask-gray: #e5e7eb;
+  --utask-gray-dark: #9ca3af;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900;
+}
+
+.container {
+  @apply px-4 mx-auto max-w-7xl;
+}
+
+/* Estilos para componentes comuns */
+.btn {
+  @apply px-4 py-2 font-medium text-white transition-colors rounded-lg bg-utask-blue hover:bg-utask-blue-dark focus:outline-none focus:ring-2 focus:ring-utask-blue focus:ring-opacity-50;
+}
+
+.btn-secondary {
+  @apply px-4 py-2 font-medium transition-colors bg-white border rounded-lg text-utask-blue border-utask-blue hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-utask-blue focus:ring-opacity-50;
+}
+
+.input {
+  @apply w-full px-3 py-2 border rounded-lg border-utask-gray focus:outline-none focus:ring-2 focus:ring-utask-blue;
+}
+
+.card {
+  @apply p-4 bg-white rounded-lg shadow-sm;
+}
+
+/* Animações */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+/* Utilitários */
+.text-utask-blue {
+  color: var(--utask-blue);
+}
+
+.bg-utask-blue {
+  background-color: var(--utask-blue);
+}
+
+.border-utask-blue {
+  border-color: var(--utask-blue);
+}
+
+.text-utask-gray {
+  color: var(--utask-gray-dark);
+}
+
+.bg-utask-gray {
+  background-color: var(--utask-gray);
+}
+
+.border-utask-gray {
+  border-color: var(--utask-gray);
+}

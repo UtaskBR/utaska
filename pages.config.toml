@@ -1,0 +1,22 @@
+# This file controls how Cloudflare Pages builds and deploys your site
+# https://developers.cloudflare.com/pages/platform/build-configuration/
+
+# Configuração do Cloudflare Pages para Next.js
+# Usando @cloudflare/next-on-pages para compatibilidade
+
+[build]
+  command = "npm run pages:build"
+  publish = ".vercel/output/static"
+
+[build.environment]
+  NODE_VERSION = "18.17.0"
+  NPM_VERSION = "9.6.7"
+
+# Configurações de compatibilidade
+[compatibility_flags]
+  nodejs_compat = true
+
+# Variáveis de ambiente para produção
+[env.production]
+  NODE_ENV = "production"
+  ENVIRONMENT = "production"
