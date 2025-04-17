@@ -2,14 +2,14 @@
  * API para notificações
  * 
  * Esta API permite listar as notificações do usuário.
- * Otimizada para Edge Runtime.
+ * Implementação completa com Prisma para Vercel.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { D1Database } from '@cloudflare/workers-types';
+import { PrismaClient } from '@prisma/client';
 
-// Configuração para Edge Runtime
-export const runtime = 'edge';
+// Inicializa o cliente Prisma
+const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,59 +22,66 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Obtém os parâmetros da URL de forma segura para Edge Runtime
+    // Obtém os parâmetros da URL
     const url = new URL(request.url);
     const limit = parseInt(url.searchParams.get('limit') || '20', 10);
     const offset = parseInt(url.searchParams.get('offset') || '0', 10);
     const unreadOnly = url.searchParams.get('unread') === 'true';
 
-    // Acesso ao banco de dados D1
-    const db = (request as any).env.DB as D1Database;
-
-    // Constrói a consulta SQL base
-    let query = `
-      SELECT id, type, title, message, related_id, read, created_at
-      FROM notifications
-      WHERE user_id = ?
-    `;
-    
-    // Array para armazenar os parâmetros da consulta
-    const params: any[] = [parseInt(userId)];
-
-    // Adiciona filtro por não lidas, se solicitado
-    if (unreadOnly) {
-      query += " AND read = 0";
-    }
-    
-    // Adiciona ordenação e paginação
-    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
-    params.push(limit, offset);
-
-    // Prepara e executa a consulta
-    let stmt = db.prepare(query);
-    
-    // Adiciona os parâmetros à consulta
-    for (let i = 0; i < params.length; i++) {
-      stmt = stmt.bind(params[i]);
-    }
-    
-    // Executa a consulta
-    const notifications = await stmt.all();
+    // Busca as notificações do usuário com Prisma
+    const notifications = await prisma.notification.findMany({
+      where: {
+        userId: parseInt(userId),
+        ...(unreadOnly ? { read: false } : {})
+      },
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        message: true,
+        relatedId: true,
+        read: true,
+        createdAt: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: limit,
+      skip: offset
+    });
 
     // Conta o número de notificações não lidas
-    const unreadCount = await db
-      .prepare('SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND read = 0')
-      .bind(parseInt(userId))
-      .first();
+    const unreadCount = await prisma.notification.count({
+      where: {
+        userId: parseInt(userId),
+        read: false
+      }
+    });
+
+    // Conta o total de notificações para paginação
+    const totalCount = await prisma.notification.count({
+      where: {
+        userId: parseInt(userId),
+        ...(unreadOnly ? { read: false } : {})
+      }
+    });
 
     // Retorna as notificações e contagem de não lidas
     return NextResponse.json({
-      notifications: notifications.results,
-      unreadCount: unreadCount ? unreadCount.count : 0,
+      notifications: notifications.map(notification => ({
+        id: notification.id,
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        related_id: notification.relatedId,
+        read: notification.read,
+        created_at: notification.createdAt.toISOString()
+      })),
+      unreadCount: unreadCount,
       pagination: {
         limit,
         offset,
-        total: notifications.results.length // Nota: Isso não é o total real, apenas o número de resultados retornados
+        total: totalCount
       }
     });
   } catch (error) {
@@ -83,5 +90,20 @@ export async function GET(request: NextRequest) {
       { error: 'Erro interno do servidor' },
       { status: 500 }
     );
+  } finally {
+    // Desconecta o cliente Prisma para evitar conexões pendentes
+    await prisma.$disconnect();
   }
+}
+
+// Adicione suporte a CORS
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 }

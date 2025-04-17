@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Este arquivo contém o schema do Prisma para o projeto UTASK
+// Salve como prisma/schema.prisma
 
 generator client {
   provider = "prisma-client-js"
@@ -10,70 +7,128 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("POSTGRES_PRISMA_URL")
+  url      = env("DATABASE_URL")
 }
 
-// Modelos baseados nas tabelas existentes no UTASK
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String              @id @default(uuid())
+  name              String
+  email             String              @unique
+  password          String
+  phone             String?
+  address           String?
+  city              String?
+  state             String?
+  zipCode           String?
+  profileImage      String?
+  bio               String?
+  rating            Float               @default(0)
+  reviewCount       Int                 @default(0)
+  isVerified        Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  services          Service[]
+  proposals         Proposal[]
+  notifications     Notification[]
+  wallet            Wallet?
+  transactions      Transaction[]
+  receivedReviews   Review[]            @relation("ReceivedReviews")
+  givenReviews      Review[]            @relation("GivenReviews")
+  favoriteServices  FavoriteService[]
 }
 
 model Category {
-  id        Int      @id @default(autoincrement())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id @default(uuid())
+  name        String    @unique
+  icon        String?
+  description String?
+  services    Service[]
 }
 
 model Service {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String
-  budget      Float
-  userId      Int
-  categoryId  Int
-  latitude    Float?
-  longitude   Float?
-  status      String   @default("open")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String            @id @default(uuid())
+  title           String
+  description     String
+  price           Float?
+  location        String?
+  latitude        Float?
+  longitude       Float?
+  remote          Boolean           @default(false)
+  status          String            @default("open") // open, assigned, completed, cancelled
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  userId          String
+  categoryId      String
+  user            User              @relation(fields: [userId], references: [id])
+  category        Category          @relation(fields: [categoryId], references: [id])
+  proposals       Proposal[]
+  favoriteBy      FavoriteService[]
 }
 
 model Proposal {
-  id          Int      @id @default(autoincrement())
-  serviceId   Int
-  userId      Int
-  amount      Float
-  description String
-  status      String   @default("pending")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model Wallet {
-  id      Int   @id @default(autoincrement())
-  userId  Int
-  balance Float @default(0)
-}
-
-model Transaction {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  amount    Float
-  type      String
-  status    String
-  createdAt DateTime @default(now())
+  id          String    @id @default(uuid())
+  message     String
+  price       Float
+  status      String    @default("pending") // pending, accepted, rejected, countered
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  userId      String
+  serviceId   String
+  user        User      @relation(fields: [userId], references: [id])
+  service     Service   @relation(fields: [serviceId], references: [id])
 }
 
 model Notification {
-  id        Int      @id @default(autoincrement())
-  userId    Int
+  id        String    @id @default(uuid())
+  title     String
   message   String
-  read      Boolean  @default(false)
+  read      Boolean   @default(false)
+  type      String    @default("info") // info, success, warning, error
+  createdAt DateTime  @default(now())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+}
+
+model Wallet {
+  id          String        @id @default(uuid())
+  balance     Float         @default(0)
+  userId      String        @unique
+  user        User          @relation(fields: [userId], references: [id])
+  transactions Transaction[]
+}
+
+model Transaction {
+  id          String    @id @default(uuid())
+  amount      Float
+  type        String    // deposit, withdrawal, payment, refund
+  status      String    @default("pending") // pending, completed, failed
+  description String?
+  createdAt   DateTime  @default(now())
+  userId      String
+  walletId    String?
+  user        User      @relation(fields: [userId], references: [id])
+  wallet      Wallet?   @relation(fields: [walletId], references: [id])
+}
+
+model Review {
+  id          String    @id @default(uuid())
+  rating      Float
+  comment     String?
+  createdAt   DateTime  @default(now())
+  fromUserId  String
+  toUserId    String
+  serviceId   String?
+  fromUser    User      @relation("GivenReviews", fields: [fromUserId], references: [id])
+  toUser      User      @relation("ReceivedReviews", fields: [toUserId], references: [id])
+}
+
+model FavoriteService {
+  id        String   @id @default(uuid())
+  userId    String
+  serviceId String
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  service   Service  @relation(fields: [serviceId], references: [id])
+
+  @@unique([userId, serviceId])
 }

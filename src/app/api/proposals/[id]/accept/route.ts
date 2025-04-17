@@ -2,14 +2,14 @@
  * API para aceitar uma proposta
  * 
  * Esta API permite que o dono de um serviço aceite uma proposta.
- * Otimizada para Edge Runtime.
+ * Implementação completa com Prisma para Vercel.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { D1Database } from '@cloudflare/workers-types';
+import { PrismaClient } from '@prisma/client';
 
-// Configuração para Edge Runtime
-export const runtime = 'edge';
+// Inicializa o cliente Prisma
+const prisma = new PrismaClient();
 
 export async function POST(
   request: NextRequest,
@@ -33,26 +33,15 @@ export async function POST(
       );
     }
 
-    // Acesso ao banco de dados D1
-    const db = (request as any).env.DB as D1Database;
-
-    // Busca a proposta e o serviço relacionado
-    const proposal = await db
-      .prepare(`
-        SELECT 
-          p.id, 
-          p.service_id, 
-          p.provider_id, 
-          p.price, 
-          p.status,
-          s.user_id as service_owner_id,
-          s.title as service_title
-        FROM proposals p
-        JOIN services s ON p.service_id = s.id
-        WHERE p.id = ?
-      `)
-      .bind(proposalId)
-      .first();
+    // Busca a proposta e o serviço relacionado usando Prisma
+    const proposal = await prisma.proposal.findUnique({
+      where: {
+        id: proposalId
+      },
+      include: {
+        service: true
+      }
+    });
 
     if (!proposal) {
       return NextResponse.json(
@@ -62,7 +51,7 @@ export async function POST(
     }
 
     // Verifica se o usuário é o dono do serviço
-    if (proposal.service_owner_id !== parseInt(userId)) {
+    if (proposal.service.userId !== parseInt(userId)) {
       return NextResponse.json(
         { error: 'Você não tem permissão para aceitar esta proposta' },
         { status: 403 }
@@ -77,50 +66,62 @@ export async function POST(
       );
     }
 
-    // Inicia uma transação
-    // Nota: D1 não suporta transações completas, então vamos fazer as operações em sequência
-    // e tratar erros manualmente
+    // Usa uma transação do Prisma para garantir a integridade dos dados
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Atualiza o status da proposta para 'accepted'
+      const updatedProposal = await tx.proposal.update({
+        where: {
+          id: proposalId
+        },
+        data: {
+          status: 'accepted'
+        }
+      });
 
-    // 1. Atualiza o status da proposta para 'accepted'
-    await db
-      .prepare('UPDATE proposals SET status = ? WHERE id = ?')
-      .bind('accepted', proposalId)
-      .run();
+      // 2. Atualiza o status do serviço para 'in_progress'
+      await tx.service.update({
+        where: {
+          id: proposal.serviceId
+        },
+        data: {
+          status: 'in_progress'
+        }
+      });
 
-    // 2. Atualiza o status do serviço para 'in_progress'
-    await db
-      .prepare('UPDATE services SET status = ? WHERE id = ?')
-      .bind('in_progress', proposal.service_id)
-      .run();
+      // 3. Rejeita todas as outras propostas para este serviço
+      await tx.proposal.updateMany({
+        where: {
+          serviceId: proposal.serviceId,
+          id: {
+            not: proposalId
+          }
+        },
+        data: {
+          status: 'rejected'
+        }
+      });
 
-    // 3. Rejeita todas as outras propostas para este serviço
-    await db
-      .prepare('UPDATE proposals SET status = ? WHERE service_id = ? AND id != ?')
-      .bind('rejected', proposal.service_id, proposalId)
-      .run();
+      // 4. Cria uma notificação para o provedor
+      await tx.notification.create({
+        data: {
+          userId: proposal.providerId,
+          type: 'proposal_accepted',
+          title: 'Proposta aceita',
+          message: `Sua proposta para o serviço "${proposal.service.title}" foi aceita!`,
+          relatedId: proposalId,
+          read: false
+        }
+      });
 
-    // 4. Cria uma notificação para o provedor
-    await db
-      .prepare(`
-        INSERT INTO notifications (user_id, type, title, message, related_id, read) 
-        VALUES (?, ?, ?, ?, ?, ?)
-      `)
-      .bind(
-        proposal.provider_id,
-        'proposal_accepted',
-        'Proposta aceita',
-        `Sua proposta para o serviço "${proposal.service_title}" foi aceita!`,
-        proposalId,
-        0
-      )
-      .run();
+      return updatedProposal;
+    });
 
     // Retorna sucesso
     return NextResponse.json({
       success: true,
       message: 'Proposta aceita com sucesso',
       proposal: {
-        id: proposal.id,
+        id: result.id,
         status: 'accepted'
       }
     });
@@ -130,5 +131,20 @@ export async function POST(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     );
+  } finally {
+    // Desconecta o cliente Prisma para evitar conexões pendentes
+    await prisma.$disconnect();
   }
+}
+
+// Adicione suporte a CORS
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 }

@@ -1,21 +1,23 @@
-// lib/prisma.ts
+// Este arquivo contém a configuração do cliente Prisma para o projeto UTASK
+// Salve como lib/prisma.ts
+
 import { PrismaClient } from '@prisma/client';
 
-declare global {
-  // Impede recriação do PrismaClient durante hot reload no desenvolvimento
-  // eslint-disable-next-line no-var
-  var prisma: PrismaClient | undefined;
+// Evita múltiplas instâncias do Prisma Client em desenvolvimento
+// https://www.prisma.io/docs/guides/performance-and-optimization/connection-management
+
+let prisma: PrismaClient;
+
+if (process.env.NODE_ENV === 'production') {
+  prisma = new PrismaClient();
+} else {
+  // @ts-ignore
+  if (!global.prisma) {
+    // @ts-ignore
+    global.prisma = new PrismaClient();
+  }
+  // @ts-ignore
+  prisma = global.prisma;
 }
 
-// Usar a URL da conexão do PostgreSQL do ambiente Vercel (.env.local)
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: ['query', 'error', 'warn'],
-  });
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+export default prisma;

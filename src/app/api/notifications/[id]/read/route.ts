@@ -2,14 +2,14 @@
  * API para marcar uma notificação como lida
  * 
  * Esta API permite marcar uma notificação específica como lida.
- * Otimizada para Edge Runtime.
+ * Implementação completa com Prisma para Vercel.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { D1Database } from '@cloudflare/workers-types';
+import { PrismaClient } from '@prisma/client';
 
-// Configuração para Edge Runtime
-export const runtime = 'edge';
+// Inicializa o cliente Prisma
+const prisma = new PrismaClient();
 
 export async function POST(
   request: NextRequest,
@@ -33,14 +33,16 @@ export async function POST(
       );
     }
 
-    // Acesso ao banco de dados D1
-    const db = (request as any).env.DB as D1Database;
-
     // Verifica se a notificação existe e pertence ao usuário
-    const notification = await db
-      .prepare('SELECT id, user_id FROM notifications WHERE id = ?')
-      .bind(notificationId)
-      .first();
+    const notification = await prisma.notification.findUnique({
+      where: {
+        id: notificationId
+      },
+      select: {
+        id: true,
+        userId: true
+      }
+    });
 
     if (!notification) {
       return NextResponse.json(
@@ -49,7 +51,7 @@ export async function POST(
       );
     }
 
-    if (notification.user_id !== parseInt(userId)) {
+    if (notification.userId !== parseInt(userId)) {
       return NextResponse.json(
         { error: 'Você não tem permissão para acessar esta notificação' },
         { status: 403 }
@@ -57,10 +59,14 @@ export async function POST(
     }
 
     // Marca a notificação como lida
-    await db
-      .prepare('UPDATE notifications SET read = 1 WHERE id = ?')
-      .bind(notificationId)
-      .run();
+    await prisma.notification.update({
+      where: {
+        id: notificationId
+      },
+      data: {
+        read: true
+      }
+    });
 
     // Retorna sucesso
     return NextResponse.json({
@@ -73,5 +79,20 @@ export async function POST(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     );
+  } finally {
+    // Desconecta o cliente Prisma para evitar conexões pendentes
+    await prisma.$disconnect();
   }
+}
+
+// Adicione suporte a CORS
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 }

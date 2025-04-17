@@ -5,7 +5,7 @@
  * 
  * Este componente implementa a página de busca com Suspense boundary
  * para resolver o problema com useSearchParams.
- * Otimizado para Edge Runtime.
+ * Adaptado para Vercel.
  */
 
 import React, { useState, useEffect, Suspense } from 'react';

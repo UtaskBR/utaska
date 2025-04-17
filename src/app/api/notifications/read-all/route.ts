@@ -2,14 +2,14 @@
  * API para marcar todas as notificações como lidas
  * 
  * Esta API permite marcar todas as notificações do usuário como lidas.
- * Otimizada para Edge Runtime.
+ * Implementação completa com Prisma para Vercel.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { D1Database } from '@cloudflare/workers-types';
+import { PrismaClient } from '@prisma/client';
 
-// Configuração para Edge Runtime
-export const runtime = 'edge';
+// Inicializa o cliente Prisma
+const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,14 +22,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Acesso ao banco de dados D1
-    const db = (request as any).env.DB as D1Database;
-
     // Marca todas as notificações do usuário como lidas
-    await db
-      .prepare('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0')
-      .bind(parseInt(userId))
-      .run();
+    await prisma.notification.updateMany({
+      where: {
+        userId: parseInt(userId),
+        read: false
+      },
+      data: {
+        read: true
+      }
+    });
 
     // Retorna sucesso
     return NextResponse.json({
@@ -42,5 +44,20 @@ export async function POST(request: NextRequest) {
       { error: 'Erro interno do servidor' },
       { status: 500 }
     );
+  } finally {
+    // Desconecta o cliente Prisma para evitar conexões pendentes
+    await prisma.$disconnect();
   }
+}
+
+// Adicione suporte a CORS
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 }

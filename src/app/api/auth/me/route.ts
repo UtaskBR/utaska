@@ -2,14 +2,14 @@
  * API para verificação do usuário atual
  * 
  * Esta API retorna os dados do usuário autenticado com base no token JWT.
- * Otimizada para Edge Runtime.
+ * Adaptada para Vercel com Prisma.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { D1Database } from '@cloudflare/workers-types';
+import { PrismaClient } from '@prisma/client';
 
-// Configuração para Edge Runtime
-export const runtime = 'edge';
+// Inicializa o cliente Prisma
+const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,14 +23,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Acesso ao banco de dados D1
-    const db = (request as any).env.DB as D1Database;
-
-    // Busca os dados do usuário
-    const user = await db
-      .prepare('SELECT id, name, email, city, state, avatar_url, balance, created_at FROM users WHERE id = ?')
-      .bind(parseInt(userId))
-      .first();
+    // Busca os dados do usuário usando Prisma
+    const user = await prisma.user.findUnique({
+      where: {
+        id: parseInt(userId)
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        city: true,
+        state: true,
+        avatar_url: true,
+        balance: true,
+        createdAt: true
+      }
+    });
 
     if (!user) {
       return NextResponse.json(
@@ -49,7 +57,7 @@ export async function GET(request: NextRequest) {
         state: user.state,
         avatar_url: user.avatar_url,
         balance: user.balance,
-        createdAt: user.created_at
+        createdAt: user.createdAt
       }
     });
   } catch (error) {
@@ -58,5 +66,20 @@ export async function GET(request: NextRequest) {
       { error: 'Erro interno do servidor' },
       { status: 500 }
     );
+  } finally {
+    // Desconecta o cliente Prisma para evitar conexões pendentes
+    await prisma.$disconnect();
   }
+}
+
+// Adicione suporte a CORS
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 }

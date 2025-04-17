@@ -1,0 +1,120 @@
+/* 
+  Estilos globais da aplicação UTASK
+  Este arquivo contém os estilos base e variáveis CSS utilizadas em todo o aplicativo
+*/
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Cores principais do UTASK */
+  --utask-blue-light: #7FB3FA;
+  --utask-blue: #4A90E2;
+  --utask-blue-dark: #2171D6;
+  --utask-gray-light: #F5F7FA;
+  --utask-gray: #E4E7EB;
+  --utask-gray-dark: #9AA5B1;
+  
+  /* Cores de status */
+  --status-pending: #F5A623;
+  --status-in-progress: #4A90E2;
+  --status-completed: #7ED321;
+  --status-cancelled: #D0021B;
+  
+  /* Espaçamentos padrão */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+}
+
+/* Estilos base */
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--utask-gray-light);
+  color: #333;
+  line-height: 1.5;
+}
+
+/* Componentes reutilizáveis */
+@layer components {
+  /* Botões */
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+  }
+  
+  .btn-primary {
+    @apply bg-utask-blue text-white hover:bg-utask-blue-dark shadow-button;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-utask-blue border border-utask-blue hover:bg-utask-gray-light;
+  }
+  
+  .btn-danger {
+    @apply bg-red-500 text-white hover:bg-red-600;
+  }
+  
+  /* Cards */
+  .card {
+    @apply bg-white rounded-xl p-4 shadow-card;
+  }
+  
+  /* Inputs */
+  .input {
+    @apply w-full px-3 py-2 border border-utask-gray rounded-lg focus:outline-none focus:ring-2 focus:ring-utask-blue;
+  }
+  
+  /* Badges */
+  .badge {
+    @apply px-2 py-1 text-xs font-medium rounded-full;
+  }
+  
+  .badge-pending {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+  
+  .badge-in-progress {
+    @apply bg-blue-100 text-blue-800;
+  }
+  
+  .badge-completed {
+    @apply bg-green-100 text-green-800;
+  }
+  
+  .badge-cancelled {
+    @apply bg-red-100 text-red-800;
+  }
+}
+
+/* Animações */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Responsividade */
+@media (max-width: 640px) {
+  .hide-on-mobile {
+    display: none;
+  }
+}
+
+/* Acessibilidade */
+:focus {
+  outline: 2px solid var(--utask-blue);
+  outline-offset: 2px;
+}
+
+/* Modo escuro (preparado para implementação futura) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Cores para modo escuro (a serem implementadas) */
+  }
+}
