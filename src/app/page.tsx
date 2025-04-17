@@ -51,8 +51,8 @@ export default function HomePage() {
   };
 
   const handleSearch = () => {
-    const serviceType = document.getElementById('service-type')?.value;
-    const location = document.getElementById('location')?.value;
+    const serviceType = (document.getElementById('service-type') as HTMLSelectElement)?.value;
+    const location = (document.getElementById('location') as HTMLInputElement)?.value;
     
     alert(`Busca simulada: ${serviceType ? 'Categoria: ' + serviceType : 'Todas as categorias'} ${location ? 'em ' + location : ''}`);
   };
