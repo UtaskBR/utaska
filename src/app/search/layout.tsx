@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Inter } from 'next/font/google';
-import './globals.css';
+import 'import '../globals.css';
 
 // Configuração da fonte Inter do Google Fonts
 const inter = Inter({ subsets: ['latin'] });
