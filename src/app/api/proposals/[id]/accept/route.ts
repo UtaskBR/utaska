@@ -67,50 +67,66 @@ export async function POST(
     }
 
     // Usa uma transação do Prisma para garantir a integridade dos dados
-    const result = await prisma.$transaction(async (tx) => {
+    interface UpdatedProposal {
+      id: number;
+      status: string;
+    }
+
+    interface NotificationData {
+      userId: number;
+      type: string;
+      title: string;
+      message: string;
+      relatedId: number;
+      read: boolean;
+    }
+
+    const result: UpdatedProposal = await prisma.$transaction(async (tx: PrismaClient): Promise<UpdatedProposal> => {
       // 1. Atualiza o status da proposta para 'accepted'
-      const updatedProposal = await tx.proposal.update({
-        where: {
-          id: proposalId
-        },
-        data: {
-          status: 'accepted'
-        }
+      const updatedProposal: UpdatedProposal = await tx.proposal.update({
+      where: {
+        id: proposalId
+      },
+      data: {
+        status: 'accepted'
+      }
       });
 
       // 2. Atualiza o status do serviço para 'in_progress'
       await tx.service.update({
-        where: {
-          id: proposal.serviceId
-        },
-        data: {
-          status: 'in_progress'
-        }
+      where: {
+        id: proposal.serviceId
+      },
+      data: {
+        status: 'in_progress'
+      }
       });
 
       // 3. Rejeita todas as outras propostas para este serviço
       await tx.proposal.updateMany({
-        where: {
-          serviceId: proposal.serviceId,
-          id: {
-            not: proposalId
-          }
-        },
-        data: {
-          status: 'rejected'
+      where: {
+        serviceId: proposal.serviceId,
+        id: {
+        not: proposalId
         }
+      },
+      data: {
+        status: 'rejected'
+      }
       });
 
       // 4. Cria uma notificação para o provedor
+      const notificationData: NotificationData = {
+      userId: proposal.providerId,
+      type: 'proposal_accepted',
+      title: 'Proposta aceita',
+      message: `Sua proposta para o serviço "${proposal.service.title}" foi aceita!`,
+      relatedId: proposalId,
+      read: false
+      };
+
       await tx.notification.create({
-        data: {
-          userId: proposal.providerId,
-          type: 'proposal_accepted',
-          title: 'Proposta aceita',
-          message: `Sua proposta para o serviço "${proposal.service.title}" foi aceita!`,
-          relatedId: proposalId,
-          read: false
-        }
+      data: notificationData
       });
 
       return updatedProposal;

@@ -67,21 +67,98 @@ export async function GET(request: NextRequest) {
     });
 
     // Retorna as notificações e contagem de não lidas
-    return NextResponse.json({
-      notifications: notifications.map(notification => ({
-        id: notification.id,
-        type: notification.type,
-        title: notification.title,
-        message: notification.message,
-        related_id: notification.relatedId,
-        read: notification.read,
-        created_at: notification.createdAt.toISOString()
+    interface NotificationResponse {
+      id: number;
+      type: string;
+      title: string;
+      message: string;
+      related_id: number | null;
+      read: boolean;
+      created_at: string;
+    }
+
+    interface Pagination {
+      limit: number;
+      offset: number;
+      total: number;
+    }
+
+    interface NotificationsResponse {
+      notifications: NotificationResponse[];
+      unreadCount: number;
+      pagination: Pagination;
+    }
+
+    interface NotificationResponse {
+      id: number;
+      type: string;
+      title: string;
+      message: string;
+      related_id: number | null;
+      read: boolean;
+      created_at: string;
+    }
+
+    interface Pagination {
+      limit: number;
+      offset: number;
+      total: number;
+    }
+
+    interface NotificationsResponse {
+      notifications: NotificationResponse[];
+      unreadCount: number;
+      pagination: Pagination;
+    }
+
+    // Define interfaces para os tipos
+    interface Notification {
+      id: number;
+      type: string;
+      title: string;
+      message: string;
+      relatedId: number | null;
+      read: boolean;
+      createdAt: Date;
+    }
+
+    interface NotificationResponse {
+      id: number;
+      type: string;
+      title: string;
+      message: string;
+      related_id: number | null;
+      read: boolean;
+      created_at: string;
+    }
+
+    interface Pagination {
+      limit: number;
+      offset: number;
+      total: number;
+    }
+
+    interface NotificationsResponse {
+      notifications: NotificationResponse[];
+      unreadCount: number;
+      pagination: Pagination;
+    }
+
+    return NextResponse.json<NotificationsResponse>({
+      notifications: notifications.map((notification: Notification): NotificationResponse => ({
+      id: notification.id,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      related_id: notification.relatedId,
+      read: notification.read,
+      created_at: notification.createdAt.toISOString()
       })),
       unreadCount: unreadCount,
       pagination: {
-        limit,
-        offset,
-        total: totalCount
+      limit,
+      offset,
+      total: totalCount
       }
     });
   } catch (error) {

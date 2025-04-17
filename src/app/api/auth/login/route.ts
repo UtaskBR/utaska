@@ -3,16 +3,16 @@
  * 
  * Esta API permite que usuários façam login no sistema UTASK.
  * Ela valida as credenciais, verifica a senha e retorna um token JWT.
- * Otimizada para Edge Runtime.
+ * Implementação completa com Prisma para Vercel.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { D1Database } from '@cloudflare/workers-types';
+import { PrismaClient } from '@prisma/client';
 import { verifyPassword } from '@/lib/password';
 import { generateJWT } from '@/lib/jwt';
 
-// Configuração para Edge Runtime
-export const runtime = 'edge';
+// Inicializa o cliente Prisma
+const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,14 +28,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Acesso ao banco de dados D1
-    const db = (request as any).env.DB as D1Database;
-
-    // Busca o usuário pelo email
-    const user = await db
-      .prepare('SELECT id, name, email, password_hash, city, state, avatar_url, balance, created_at FROM users WHERE email = ?')
-      .bind(email)
-      .first();
+    // Busca o usuário pelo email usando Prisma
+    const user = await prisma.user.findUnique({
+      where: {
+        email: email
+      }
+    });
 
     if (!user) {
       return NextResponse.json(
@@ -44,8 +42,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verifica a senha usando a função compatível com Edge
-    const isPasswordValid = await verifyPassword(password, user.password_hash);
+    // Verifica a senha
+    const isPasswordValid = await verifyPassword(password, user.password);
 
     if (!isPasswordValid) {
       return NextResponse.json(
@@ -59,25 +57,53 @@ export async function POST(request: NextRequest) {
       { userId: user.id, email: user.email }
     );
 
-    // Retorna os dados do usuário e o token
-    return NextResponse.json({
+    // Cria a resposta com os dados do usuário e o token
+    const response = NextResponse.json({
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
-        city: user.city,
-        state: user.state,
-        avatar_url: user.avatar_url,
-        balance: user.balance,
-        createdAt: user.created_at
+        city: user.city || '',
+        state: user.state || '',
+        avatar_url: user.avatar_url || '',
+        balance: user.balance || 0,
+        createdAt: user.createdAt
       },
       token
     });
+
+    // Define o cookie com o token JWT
+    response.cookies.set({
+      name: 'token',
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24 * 7, // 1 semana
+      path: '/',
+    });
+
+    return response;
   } catch (error) {
     console.error('Erro no login:', error);
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     );
+  } finally {
+    // Desconecta o cliente Prisma para evitar conexões pendentes
+    await prisma.$disconnect();
   }
+}
+
+// Adicione suporte a CORS
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 }

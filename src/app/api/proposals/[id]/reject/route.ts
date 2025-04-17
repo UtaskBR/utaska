@@ -2,14 +2,14 @@
  * API para rejeitar uma proposta
  * 
  * Esta API permite que o dono de um serviço rejeite uma proposta.
- * Otimizada para Edge Runtime.
+ * Implementação completa com Prisma para Vercel.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { D1Database } from '@cloudflare/workers-types';
+import { PrismaClient } from '@prisma/client';
 
-// Configuração para Edge Runtime
-export const runtime = 'edge';
+// Inicializa o cliente Prisma
+const prisma = new PrismaClient();
 
 export async function POST(
   request: NextRequest,
@@ -33,25 +33,15 @@ export async function POST(
       );
     }
 
-    // Acesso ao banco de dados D1
-    const db = (request as any).env.DB as D1Database;
-
-    // Busca a proposta e o serviço relacionado
-    const proposal = await db
-      .prepare(`
-        SELECT 
-          p.id, 
-          p.service_id, 
-          p.provider_id, 
-          p.status,
-          s.user_id as service_owner_id,
-          s.title as service_title
-        FROM proposals p
-        JOIN services s ON p.service_id = s.id
-        WHERE p.id = ?
-      `)
-      .bind(proposalId)
-      .first();
+    // Busca a proposta e o serviço relacionado usando Prisma
+    const proposal = await prisma.proposal.findUnique({
+      where: {
+        id: proposalId
+      },
+      include: {
+        service: true
+      }
+    });
 
     if (!proposal) {
       return NextResponse.json(
@@ -61,7 +51,7 @@ export async function POST(
     }
 
     // Verifica se o usuário é o dono do serviço
-    if (proposal.service_owner_id !== parseInt(userId)) {
+    if (proposal.service.userId !== parseInt(userId)) {
       return NextResponse.json(
         { error: 'Você não tem permissão para rejeitar esta proposta' },
         { status: 403 }
@@ -76,34 +66,55 @@ export async function POST(
       );
     }
 
-    // Atualiza o status da proposta para 'rejected'
-    await db
-      .prepare('UPDATE proposals SET status = ? WHERE id = ?')
-      .bind('rejected', proposalId)
-      .run();
+    // Usa uma transação do Prisma para garantir a integridade dos dados
+    interface UpdatedProposal {
+      id: number;
+      status: string;
+    }
 
-    // Cria uma notificação para o provedor
-    await db
-      .prepare(`
-        INSERT INTO notifications (user_id, type, title, message, related_id, read) 
-        VALUES (?, ?, ?, ?, ?, ?)
-      `)
-      .bind(
-        proposal.provider_id,
-        'proposal_rejected',
-        'Proposta rejeitada',
-        `Sua proposta para o serviço "${proposal.service_title}" foi rejeitada.`,
-        proposalId,
-        0
-      )
-      .run();
+    interface NotificationData {
+      userId: number;
+      type: string;
+      title: string;
+      message: string;
+      relatedId: number;
+      read: boolean;
+    }
+
+    const result: UpdatedProposal = await prisma.$transaction(async (tx: PrismaClient): Promise<UpdatedProposal> => {
+      // Atualiza o status da proposta para 'rejected'
+      const updatedProposal: UpdatedProposal = await tx.proposal.update({
+      where: {
+        id: proposalId
+      },
+      data: {
+        status: 'rejected'
+      }
+      });
+
+      // Cria uma notificação para o provedor
+      const notificationData: NotificationData = {
+      userId: proposal.providerId,
+      type: 'proposal_rejected',
+      title: 'Proposta rejeitada',
+      message: `Sua proposta para o serviço "${proposal.service.title}" foi rejeitada.`,
+      relatedId: proposalId,
+      read: false
+      };
+
+      await tx.notification.create({
+      data: notificationData
+      });
+
+      return updatedProposal;
+    });
 
     // Retorna sucesso
     return NextResponse.json({
       success: true,
       message: 'Proposta rejeitada com sucesso',
       proposal: {
-        id: proposal.id,
+        id: result.id,
         status: 'rejected'
       }
     });
@@ -113,5 +124,20 @@ export async function POST(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     );
+  } finally {
+    // Desconecta o cliente Prisma para evitar conexões pendentes
+    await prisma.$disconnect();
   }
+}
+
+// Adicione suporte a CORS
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 }

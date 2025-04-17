@@ -5,96 +5,88 @@
  * Otimizada para Edge Runtime.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { D1Database } from '@cloudflare/workers-types';
+// src/app/api/services/nearby/route.ts
 
-// Configuração para Edge Runtime
-export const runtime = 'edge';
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+
+// Você pode remover esta linha se não quiser mais usar Edge
+export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   try {
-    // Obtém os parâmetros da URL de forma segura para Edge Runtime
     const url = new URL(request.url);
     const lat = parseFloat(url.searchParams.get('lat') || '0');
     const lng = parseFloat(url.searchParams.get('lng') || '0');
     const radius = parseInt(url.searchParams.get('radius') || '10', 10);
-    
-    // Validação dos parâmetros
+
     if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
-      return NextResponse.json(
-        { error: 'Latitude e longitude são obrigatórios' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Latitude e longitude são obrigatórios' }, { status: 400 });
     }
 
-    // Acesso ao banco de dados D1
-    const db = (request as any).env.DB as D1Database;
+    const radiusKm = radius; // raio em km
+    const EARTH_RADIUS = 6371; // raio da Terra em km
 
-    // Busca serviços próximos usando a fórmula de Haversine
-    // Nota: Esta é uma implementação simplificada. Para uma solução mais precisa,
-    // considere usar uma extensão espacial ou um serviço de geolocalização.
-    const services = await db.prepare(`
-      SELECT 
-        s.id, 
-        s.title, 
-        s.description, 
-        s.price, 
-        s.date, 
-        s.location,
-        s.status,
-        s.latitude,
-        s.longitude,
-        c.id as category_id,
-        c.name as category_name,
-        u.id as user_id,
-        u.name as user_name,
-        u.avatar_url,
-        (6371 * acos(
-          cos(radians(?)) * 
-          cos(radians(s.latitude)) * 
-          cos(radians(s.longitude) - radians(?)) + 
-          sin(radians(?)) * 
-          sin(radians(s.latitude))
-        )) AS distance
-      FROM services s
-      LEFT JOIN categories c ON s.category_id = c.id
-      LEFT JOIN users u ON s.user_id = u.id
-      WHERE s.status = 'pending'
-      HAVING distance <= ?
-      ORDER BY distance
-      LIMIT 50
-    `).bind(lat, lng, lat, radius).all();
-
-    // Formata os resultados
-    const formattedServices = services.results.map(service => ({
-      id: service.id,
-      title: service.title,
-      description: service.description,
-      price: service.price,
-      date: service.date,
-      location: service.location,
-      status: service.status,
-      distance: service.distance * 1000, // Converte km para metros
-      category: service.category_id ? {
-        id: service.category_id,
-        name: service.category_name
-      } : null,
-      user: service.user_id ? {
-        id: service.user_id,
-        name: service.user_name,
-        avatar_url: service.avatar_url
-      } : null
-    }));
-
-    // Retorna os serviços
-    return NextResponse.json({
-      services: formattedServices
+    // Serviços com latitude e longitude válidas
+    const services = await prisma.service.findMany({
+      where: {
+        status: 'pending',
+        latitude: { not: null },
+        longitude: { not: null },
+      },
+      include: {
+        category: true,
+        user: true,
+      },
     });
+
+    const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+      const toRad = (x: number) => (x * Math.PI) / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return EARTH_RADIUS * c;
+    };
+
+    interface Service {
+      id: number;
+      name: string;
+      latitude: number | null;
+      longitude: number | null;
+      status: string;
+      category: object; // Replace with a more specific type if available
+      user: object; // Replace with a more specific type if available
+    }
+
+    interface NearbyService extends Service {
+      distance: number;
+    }
+
+    const nearby: NearbyService[] = services
+      .map((service: Service) => {
+      const distance = haversineDistance(
+        lat,
+        lng,
+        service.latitude || 0,
+        service.longitude || 0
+      );
+
+      return {
+        ...service,
+        distance: distance * 1000, // metros
+      };
+      })
+      .filter((service: NearbyService) => service.distance <= radiusKm * 1000)
+      .sort((a: NearbyService, b: NearbyService) => a.distance - b.distance)
+      .slice(0, 50);
+
+    return NextResponse.json({ services: nearby });
   } catch (error) {
     console.error('Erro ao buscar serviços próximos:', error);
-    return NextResponse.json(
-      { error: 'Erro ao buscar serviços próximos' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
+

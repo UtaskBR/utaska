@@ -2,14 +2,14 @@
  * API para fazer uma contraproposta
  * 
  * Esta API permite que o dono de um serviço faça uma contraproposta.
- * Otimizada para Edge Runtime.
+ * Implementação completa com Prisma para Vercel.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { D1Database } from '@cloudflare/workers-types';
+import { PrismaClient } from '@prisma/client';
 
-// Configuração para Edge Runtime
-export const runtime = 'edge';
+// Inicializa o cliente Prisma
+const prisma = new PrismaClient();
 
 export async function POST(
   request: NextRequest,
@@ -45,25 +45,15 @@ export async function POST(
       );
     }
 
-    // Acesso ao banco de dados D1
-    const db = (request as any).env.DB as D1Database;
-
-    // Busca a proposta e o serviço relacionado
-    const proposal = await db
-      .prepare(`
-        SELECT 
-          p.id, 
-          p.service_id, 
-          p.provider_id, 
-          p.status,
-          s.user_id as service_owner_id,
-          s.title as service_title
-        FROM proposals p
-        JOIN services s ON p.service_id = s.id
-        WHERE p.id = ?
-      `)
-      .bind(proposalId)
-      .first();
+    // Busca a proposta e o serviço relacionado usando Prisma
+    const proposal = await prisma.proposal.findUnique({
+      where: {
+        id: proposalId
+      },
+      include: {
+        service: true
+      }
+    });
 
     if (!proposal) {
       return NextResponse.json(
@@ -73,7 +63,7 @@ export async function POST(
     }
 
     // Verifica se o usuário é o dono do serviço
-    if (proposal.service_owner_id !== parseInt(userId)) {
+    if (proposal.service.userId !== parseInt(userId)) {
       return NextResponse.json(
         { error: 'Você não tem permissão para fazer uma contraproposta' },
         { status: 403 }
@@ -88,36 +78,60 @@ export async function POST(
       );
     }
 
-    // Atualiza a proposta com o novo preço e mensagem, e muda o status para 'counter'
-    await db
-      .prepare('UPDATE proposals SET price = ?, message = ?, status = ? WHERE id = ?')
-      .bind(price, message || '', 'counter', proposalId)
-      .run();
+    // Usa uma transação do Prisma para garantir a integridade dos dados
+    interface CounterProposalData {
+      price: number;
+      message: string;
+      status: 'counter';
+    }
 
-    // Cria uma notificação para o provedor
-    await db
-      .prepare(`
-        INSERT INTO notifications (user_id, type, title, message, related_id, read) 
-        VALUES (?, ?, ?, ?, ?, ?)
-      `)
-      .bind(
-        proposal.provider_id,
-        'counter_proposal',
-        'Contraproposta recebida',
-        `Você recebeu uma contraproposta para o serviço "${proposal.service_title}"`,
-        proposalId,
-        0
-      )
-      .run();
+    interface NotificationData {
+      userId: number;
+      type: string;
+      title: string;
+      message: string;
+      relatedId: number;
+      read: boolean;
+    }
+
+    const result = await prisma.$transaction(async (tx: PrismaClient): Promise<CounterProposalData> => {
+      // Atualiza a proposta com o novo preço e mensagem, e muda o status para 'counter'
+      const updatedProposal = await tx.proposal.update({
+      where: {
+        id: proposalId
+      },
+      data: {
+        price: price,
+        message: message || '',
+        status: 'counter'
+      }
+      });
+
+      // Cria uma notificação para o provedor
+      const notificationData: NotificationData = {
+      userId: proposal.providerId,
+      type: 'counter_proposal',
+      title: 'Contraproposta recebida',
+      message: `Você recebeu uma contraproposta para o serviço "${proposal.service.title}"`,
+      relatedId: proposalId,
+      read: false
+      };
+
+      await tx.notification.create({
+      data: notificationData
+      });
+
+      return updatedProposal;
+    });
 
     // Retorna sucesso
     return NextResponse.json({
       success: true,
       message: 'Contraproposta enviada com sucesso',
       proposal: {
-        id: proposal.id,
-        price,
-        message: message || '',
+        id: result.id,
+        price: result.price,
+        message: result.message,
         status: 'counter'
       }
     });
@@ -127,5 +141,20 @@ export async function POST(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     );
+  } finally {
+    // Desconecta o cliente Prisma para evitar conexões pendentes
+    await prisma.$disconnect();
   }
+}
+
+// Adicione suporte a CORS
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 }
