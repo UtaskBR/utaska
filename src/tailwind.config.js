@@ -1,36 +1,32 @@
+/** @type {import('tailwindcss').Config} */
 module.exports = {
     content: [
+      './src/app/**/*.{js,ts,jsx,tsx}',
       './src/pages/**/*.{js,ts,jsx,tsx}',
       './src/components/**/*.{js,ts,jsx,tsx}',
-      './src/app/**/*.{js,ts,jsx,tsx}',
     ],
     theme: {
       extend: {
         colors: {
-          // Definindo as cores principais do UTASK (azul claro e branco)
-          'utask-blue': {
-            light: '#7FB3FA',
-            DEFAULT: '#4A90E2',
-            dark: '#2171D6',
+          'primary': 'var(--primary-color, #4361ee)',
+          'secondary': 'var(--secondary-color, #3f37c9)',
+          'accent': 'var(--accent-color, #4895ef)',
+          'utask-blue': 'var(--utask-blue, #3b82f6)',
+          'utask-blue-dark': 'var(--utask-blue-dark, #2563eb)',
+          'utask-gray': 'var(--utask-gray, #e5e7eb)',
+          'utask-gray-dark': 'var(--utask-gray-dark, #9ca3af)',
+        },
+        animation: {
+          'fade-in': 'fadeIn 0.5s ease-in-out',
+        },
+        keyframes: {
+          fadeIn: {
+            '0%': { opacity: '0' },
+            '100%': { opacity: '1' },
           },
-          'utask-gray': {
-            light: '#F5F7FA',
-            DEFAULT: '#E4E7EB',
-            dark: '#9AA5B1',
-          },
-        },
-        fontFamily: {
-          sans: ['Inter', 'sans-serif'],
-        },
-        borderRadius: {
-          'xl': '1rem',
-          '2xl': '1.5rem',
-        },
-        boxShadow: {
-          'card': '0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1)',
-          'button': '0 2px 4px rgba(74, 144, 226, 0.3)',
         },
       },
     },
     plugins: [],
   }
+  

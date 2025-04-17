@@ -4,8 +4,13 @@ const nextConfig = {
   swcMinify: true,
   images: {
     domains: ['images.unsplash.com', 'via.placeholder.com'],
+    // Removido unoptimized: true para compatibilidade com a Vercel
   },
-  // Manter estas configurações para facilitar o deployment
+  // Removidas configurações específicas para Cloudflare Pages
+  // output: 'export',
+  // distDir: '.vercel/output/static',
+  
+  // Mantidas configurações para facilitar o deployment
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -15,4 +20,3 @@ const nextConfig = {
 }
 
 module.exports = nextConfig
-
