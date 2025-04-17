@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import prisma  from '@/lib/prisma';
 
 // Use 'nodejs' no runtime se quiser evitar o Edge (recomendado para Prisma)
 export const runtime = 'nodejs';

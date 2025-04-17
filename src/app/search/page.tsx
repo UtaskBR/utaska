@@ -35,8 +35,32 @@ function SearchContent() {
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [category, setCategory] = useState(searchParams.get('category') || '');
   const [location, setLocation] = useState(searchParams.get('location') || '');
-  const [services, setServices] = useState([]);
-  const [categories, setCategories] = useState([]);
+  interface Service {
+    id: number;
+    title: string;
+    description: string;
+    price: number;
+    date: string;
+    location?: string;
+    distance?: number;
+    status: "pending" | "in_progress" | "completed" | "cancelled";
+    user?: {
+      id: number;
+      name: string;
+    };
+    category?: {
+      id: number;
+      name: string;
+    };
+  }
+
+  const [services, setServices] = useState<Service[]>([]);
+  interface Category {
+    id: string;
+    name: string;
+  }
+
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -99,7 +123,13 @@ function SearchContent() {
   }, [searchParams]);
 
   // Função para lidar com a submissão do formulário de busca
-  const handleSearch = (e) => {
+  interface SearchParams {
+    q?: string;
+    category?: string;
+    location?: string;
+  }
+
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
     
     // Constrói a URL com os parâmetros de busca
@@ -113,12 +143,12 @@ function SearchContent() {
   };
 
   // Função para visualizar detalhes de um serviço
-  const handleViewDetails = (id) => {
+  const handleViewDetails = (id: number): void => {
     router.push(`/services/${id}`);
   };
 
   // Função para fazer uma proposta para um serviço
-  const handleMakeProposal = (id) => {
+  const handleMakeProposal = (id: string): void => {
     router.push(`/services/${id}/propose`);
   };
 
@@ -215,7 +245,7 @@ function SearchContent() {
               key={service.id}
               service={service}
               onViewDetails={handleViewDetails}
-              onMakeProposal={handleMakeProposal}
+              onMakeProposal={(id) => handleMakeProposal(id.toString())}
             />
           ))}
         </div>
